@@ -6,9 +6,8 @@ Files:
 
 Makefile	# Compiles your shell program and runs the tests
 README		# This file
-tsh.c		# The shell program that you will write and hand in
-tshref		# The reference shell binary.
-sig2str.c	# Implementation of the sig2str function
+tsh.c		# The shell program that you will write and turn in
+tshref		# The reference shell executable
 
 # The remaining files are used to test your shell
 sdriver.pl	# The trace-driven shell driver
