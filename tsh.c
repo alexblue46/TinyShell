@@ -3,7 +3,8 @@
  *
  * This program implements a tiny shell with job control.
  *
- * <Put your name(s) and NetID(s) here>
+ * Kyran Adams, kpa1
+ * Alex Bluestein, arb19
  */
 
 #include <sys/types.h>
@@ -24,6 +25,8 @@
 #define MAXARGS       128   // max args on a command line
 #define MAXJOBS        16   // max jobs at any point in time
 #define MAXJID   (1 << 16)  // max job ID
+
+#define PATH_MAX 4096 // Defined in linux/limits.h
 
 // The job states are:
 #define UNDEF 0 // undefined
@@ -59,6 +62,9 @@ extern char **environ;             // defined by libc
 
 static char prompt[] = "tsh> ";    // command line prompt (DO NOT CHANGE)
 static bool verbose = false;       // If true, print additional output.
+
+ // An array that contains all of the paths in the PATH variable
+static char **search_path;
 
 /*
  * The following array can be used to map a signal number to its name.
@@ -281,9 +287,23 @@ main(int argc, char **argv)
 static void
 eval(const char *cmdline) 
 {
+	// Parse the string from the shell into argument values
+	char **argv = NULL;
+	int bg = parseline(cmdline, argv);
+	
+	// If builtin command, evaluate it
+	if (builtin_cmd(argv)) {
+		return;
+	}
+	(void)bg;
+	// Otherwise we have an executable
+	
+	// If not directory and search path not null
+	// Search search path for executable
+	// Launch 
 
-	// Prevent an "unused parameter" warning.  REMOVE THIS STATEMENT!
-	(void)cmdline;
+	// Else
+	// Launch
 }
 
 /* 
@@ -365,8 +385,18 @@ static int
 builtin_cmd(char **argv) 
 {
 
-	// Prevent an "unused parameter" warning.  REMOVE THIS STATEMENT!
-	(void)argv;
+	if (!strcmp(argv[0], "quit")) {
+		exit(0);
+	}
+	if (!strcmp(argv[0], "jobs")) {
+		// DO JOBS TODO
+		return 1;
+	}
+	if (!strcmp(argv[0], "bg") || !strcmp(argv[0], "fg")) {
+		do_bgfg(argv);
+		return 1;
+	}
+
 	return (0);     // This is not a built-in command.
 }
 
@@ -412,14 +442,56 @@ waitfg(pid_t pid)
  *   "pathstr" is a valid search path.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Parses the pathstr into the static search_path array.
  */
 static void
 initpath(const char *pathstr)
 {
-
-	// Prevent an "unused parameter" warning.  REMOVE THIS STATEMENT!
-	(void)pathstr;
+	// Calculate the number of paths to store, equals
+	// the number of colons in the string plus one.
+	int num_paths = 1;
+	int i = 0;
+	while (pathstr[i] != '\0') {
+		if (pathstr[i] == ':') {
+			num_paths++;
+		}
+		i++;
+	}
+	// Allocate the path array
+	if ((search_path = malloc(sizeof(char*) * (num_paths + 1))) == NULL) {
+		Sio_error("Failed getting path");
+	}
+        
+	// Copy the paths into search_path
+	int cur_pos = 0;
+	for (i = 0; i < num_paths; i++) {
+		int len = 0;
+		while (pathstr[cur_pos + len] != ':' && 
+		       pathstr[cur_pos + len] != '\0') {
+			len++;
+		}
+		char *path;
+		if (len == 0) {
+			if ((path = malloc(sizeof(char) * PATH_MAX)) == NULL) {
+				Sio_error("Failed getting path");
+			}
+			if (getcwd(path, sizeof(char) * PATH_MAX) == NULL) {
+				Sio_error("Failed getting path");
+			}
+		} else {
+			if ((path = malloc(sizeof(char) * (len + 1))) == NULL) {
+				Sio_error("Failed getting path");
+			}
+			int z;
+			for (z = 0; z < len; z++) {
+				path[z] = pathstr[cur_pos + z];
+			}
+			path[z+1] = '\0';
+		}
+		search_path[i] = path;
+		cur_pos += len + 1;
+	}
+	search_path[num_paths] = NULL;
 }
 
 /*
