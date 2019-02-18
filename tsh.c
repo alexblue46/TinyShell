@@ -288,22 +288,75 @@ static void
 eval(const char *cmdline) 
 {
 	// Parse the string from the shell into argument values
-	char **argv = NULL;
+	char **argv;
+	if ((argv = malloc(sizeof(char*) * MAXARGS)) == NULL) {
+		Sio_error("Failed allocating memory");
+	}
 	int bg = parseline(cmdline, argv);
 	
 	// If builtin command, evaluate it
 	if (builtin_cmd(argv)) {
 		return;
 	}
-	(void)bg;
-	// Otherwise we have an executable
+	if (argv[0] == NULL) {
+		return;
+	}
 	
-	// If not directory and search path not null
-	// Search search path for executable
-	// Launch 
+	char *executable = NULL;
+	// Otherwise we have a executable path or name
+	if (argv[0][0] == '/' || search_path == NULL) { 
+		executable = argv[0];
+		// We have a full path to executable
+	} else {
+		int i = 0;
+		while(search_path[i] != NULL) {
+			char *abs_path;
+			if ((abs_path = malloc(strlen(search_path[i]) + 1 
+					       + strlen(argv[0]))) == NULL) {
+				    Sio_error("Failed allocating memory");
+			}
+			strcpy(abs_path, search_path[i]);
+			strcat(abs_path, "/");
+			strcat(abs_path, argv[0]);
+			printf("Checking %s\n", abs_path);
+			if (access(abs_path, X_OK) == 0) {
+				executable = abs_path;
+				break;
+			}
+			i++;
+		} 
+	}
+	
+	printf("EXE: %s\n", executable);
+	sigset_t mask, prev_mask;
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &mask, &prev_mask);
 
-	// Else
-	// Launch
+	pid_t pid = fork();
+	if (pid == 0) {
+		// Child task
+		setpgid(0, 0);
+		sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
+
+		if (execve(executable, argv, environ) < 0) {
+			printf("%s: Command not found.\n", argv[0]);
+			exit(0);
+		}
+	} else if (pid < 0) {
+		// TASK CREATION FAILED
+		printf("Task creation failed.\n");
+	}
+
+	addjob(jobs, pid, bg ? BG : FG, cmdline);
+       	sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
+		
+	if (!bg) {
+		int status;
+		if (waitpid(pid, &status, 0) < 0) {
+			printf("Waitpid error\n");
+		}
+	}
 }
 
 /* 
@@ -447,6 +500,11 @@ waitfg(pid_t pid)
 static void
 initpath(const char *pathstr)
 {
+	if (pathstr == NULL) {
+		search_path = NULL;
+		return;
+	}
+
 	// Calculate the number of paths to store, equals
 	// the number of colons in the string plus one.
 	int num_paths = 1;
