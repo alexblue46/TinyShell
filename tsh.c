@@ -293,6 +293,12 @@ eval(const char *cmdline)
 		Sio_error("Failed allocating memory");
 	}
 	int bg = parseline(cmdline, argv);
+
+	int i = 0;
+	while(argv[i] != NULL) {
+		printf("ARGV[%d]: %s\n", i, argv[i]);
+		i++;
+	}
 	
 	// If builtin command, evaluate it
 	if (builtin_cmd(argv)) {
@@ -301,15 +307,13 @@ eval(const char *cmdline)
 	if (argv[0] == NULL) {
 		return;
 	}
-	int is_subdir = 0;
-	char first_word[] = strtok(argv[0], "/");
-	
 	
 	char *executable = NULL;
 	// Otherwise we have a executable path or name
-	if (argv[0][0] == '/' || argv[0][0] == '.' || is_subdir || search_path == NULL) { 
+	if (argv[0][0] == '/' || argv[0][0] == '.' || search_path == NULL) { 
 		executable = argv[0];
 		// We have a full path to executable
+		printf("FULL PATH %s\n", argv[0]);
 	} else {
 		int i = 0;
 		// search through path for valid path to executable
@@ -516,8 +520,9 @@ initpath(const char *pathstr)
 	}
 
 	// Calculate the number of paths to store, equals
-	// the number of colons in the string plus one.
-	int num_paths = 1;
+	// the number of colons in the string plus one,
+	// plus 1 for the current dir.
+	int num_paths = 2;
 	int i = 0;
 	while (pathstr[i] != '\0') {
 		if (pathstr[i] == ':') {
@@ -530,9 +535,18 @@ initpath(const char *pathstr)
 		Sio_error("Failed getting path");
 	}
         
+	// Put current directory at beginning so we search this first
+	char *path_cwd;
+	if ((path_cwd = malloc(sizeof(char) * PATH_MAX)) == NULL) {
+		Sio_error("Failed getting path");
+	}
+	if (getcwd(path_cwd, sizeof(char) * PATH_MAX) == NULL) {
+		Sio_error("Failed getting path");
+	}
+	search_path[0] = path_cwd;
 	// Copy the paths into search_path
 	int cur_pos = 0;
-	for (i = 0; i < num_paths; i++) {
+	for (i = 1; i < num_paths; i++) {
 		int len = 0;
 		while (pathstr[cur_pos + len] != ':' && 
 		       pathstr[cur_pos + len] != '\0') {
