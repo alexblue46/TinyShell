@@ -294,11 +294,11 @@ eval(const char *cmdline)
 	}
 	int bg = parseline(cmdline, argv);
 
-	int i = 0;
-	while(argv[i] != NULL) {
-		printf("ARGV[%d]: %s\n", i, argv[i]);
-		i++;
-	}
+	//int i = 0;
+	//while(argv[i] != NULL) {
+	//	printf("ARGV[%d]: %s\n", i, argv[i]);
+	//	i++;
+	//}
 	
 	// If builtin command, evaluate it
 	if (builtin_cmd(argv)) {
@@ -313,7 +313,7 @@ eval(const char *cmdline)
 	if (argv[0][0] == '/' || argv[0][0] == '.' || search_path == NULL) { 
 		executable = argv[0];
 		// We have a full path to executable
-		printf("FULL PATH %s\n", argv[0]);
+		//printf("FULL PATH %s\n", argv[0]);
 	} else {
 		int i = 0;
 		// search through path for valid path to executable
@@ -335,8 +335,13 @@ eval(const char *cmdline)
 			i++;
 		} 
 	}
+
+	if (executable == NULL || access(executable, X_OK) != 0) {
+		printf("%s: Command not found.\n", argv[0]);
+		return;
+	}
 	
-	printf("EXE: %s\n", executable);
+	//printf("EXE: %s\n", executable);
 	// Block child signal before forking so we add job 
 	// before it's reaped
 	sigset_t mask, prev_mask;
@@ -364,6 +369,11 @@ eval(const char *cmdline)
 	}
 
 	addjob(jobs, pid, bg ? BG : FG, cmdline);
+	JobP job = jobs;
+	getjobpid(job, pid);
+	if (bg) { 
+		printf("[%d] (%d) Running %s", job->jid, job->pid, job->cmdline);
+	}
        	sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
 		
 	// If it's a foreground task, wait for it to finish before continuing REPL
@@ -443,10 +453,11 @@ parseline(const char *cmdline, char **argv)
  *  it immediately.  
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *   A string array argv with a non-null first element.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   If the first word of argv is a builtin command, executes it
+ *   and returns 1. Otherwise returns 0.
  */
 static int
 builtin_cmd(char **argv) 
@@ -456,7 +467,12 @@ builtin_cmd(char **argv)
 		exit(0);
 	}
 	if (!strcmp(argv[0], "jobs")) {
-		// DO JOBS TODO
+		int i;
+		for (i = 0; i < MAXJOBS; i++) {
+			if (jobs[i].state == BG) {
+				printf("[%d] (%d) Running %s", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
+			}
+		}
 		return 1;
 	}
 	if (!strcmp(argv[0], "bg") || !strcmp(argv[0], "fg")) {
