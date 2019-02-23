@@ -512,9 +512,15 @@ do_bgfg(char **argv)
 static void
 waitfg(pid_t pid)
 {
+	printf("Waiting for fg\n");
+	// Gets current fg pid, if 0 then we're done
+	pid_t cur_pid = fgpid(jobs);
 
-	// Prevent an "unused parameter" warning.  REMOVE THIS STATEMENT!
-	(void)pid;
+	while (cur_pid == pid) {
+		sleep(1);
+		cur_pid = fgpid(jobs);
+	}
+	printf("Done waiting for fg\n");
 }
 
 /* 
@@ -612,9 +618,24 @@ initpath(const char *pathstr)
 static void
 sigchld_handler(int signum)
 {
-
-	// Prevent an "unused parameter" warning.
+	Sio_puts("Called child handler\n");
 	(void)signum;
+        int olderrno = errno;
+	//sigset_t mask_all, prev_all;
+	pid_t pid;
+
+	//sigfillset(&mask_all);
+	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+		Sio_puts("Deleting task ");
+		Sio_putl((long)pid);
+		Sio_puts("\n");
+		deletejob(jobs, pid);
+	}
+	if (errno != ECHILD) {
+		Sio_error("waitpid error");
+	}
+	errno = olderrno;
+	Sio_error("Done reaping\n");
 }
 
 /* 
@@ -631,9 +652,13 @@ sigchld_handler(int signum)
 static void
 sigint_handler(int signum)
 {
-
-	// Prevent an "unused parameter" warning.
-	(void)signum;
+	Sio_puts("Signal int handler called\n");
+        pid_t pid = fgpid(jobs);
+	if (pid == 0) {
+		return;
+	}
+	// send signal to every process in pid process group
+	kill(-pid, signum);
 }
 
 /*
@@ -650,9 +675,14 @@ sigint_handler(int signum)
 static void
 sigtstp_handler(int signum)
 {
-
-	// Prevent an "unused parameter" warning.
-	(void)signum;
+	Sio_puts("Signal stop handler called\n");
+	pid_t pid = fgpid(jobs);
+	if (pid == 0) {
+		return;
+	}
+	// send signal to every process in pid process group
+	kill(-pid, signum);
+	
 }
 
 /*
