@@ -301,24 +301,29 @@ eval(const char *cmdline)
 	if (argv[0] == NULL) {
 		return;
 	}
+	int is_subdir = 0;
+	char first_word[] = strtok(argv[0], "/");
+	
 	
 	char *executable = NULL;
 	// Otherwise we have a executable path or name
-	if (argv[0][0] == '/' || search_path == NULL) { 
+	if (argv[0][0] == '/' || argv[0][0] == '.' || is_subdir || search_path == NULL) { 
 		executable = argv[0];
 		// We have a full path to executable
 	} else {
 		int i = 0;
+		// search through path for valid path to executable
 		while(search_path[i] != NULL) {
 			char *abs_path;
 			if ((abs_path = malloc(strlen(search_path[i]) + 1 
 					       + strlen(argv[0]))) == NULL) {
 				    Sio_error("Failed allocating memory");
 			}
+			// concat executable to path
 			strcpy(abs_path, search_path[i]);
 			strcat(abs_path, "/");
 			strcat(abs_path, argv[0]);
-			printf("Checking %s\n", abs_path);
+
 			if (access(abs_path, X_OK) == 0) {
 				executable = abs_path;
 				break;
@@ -328,6 +333,8 @@ eval(const char *cmdline)
 	}
 	
 	printf("EXE: %s\n", executable);
+	// Block child signal before forking so we add job 
+	// before it's reaped
 	sigset_t mask, prev_mask;
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGCHLD);
@@ -336,7 +343,11 @@ eval(const char *cmdline)
 	pid_t pid = fork();
 	if (pid == 0) {
 		// Child task
+
+		// Put child into new process group, so only shell is in 
+		// FG process group
 		setpgid(0, 0);
+		// Unblock blocking of child signal before we execute
 		sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
 
 		if (execve(executable, argv, environ) < 0) {
@@ -351,12 +362,11 @@ eval(const char *cmdline)
 	addjob(jobs, pid, bg ? BG : FG, cmdline);
        	sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
 		
+	// If it's a foreground task, wait for it to finish before continuing REPL
 	if (!bg) {
-		int status;
-		if (waitpid(pid, &status, 0) < 0) {
-			printf("Waitpid error\n");
-		}
+		waitfg(pid);
 	}
+	// TODO memory leak in argv? (but static buf where its allcated) executable/abs_path? 
 }
 
 /* 
