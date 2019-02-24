@@ -512,12 +512,16 @@ do_bgfg(char **argv)
 static void
 waitfg(pid_t pid)
 {
+	sigset_t mask;
+	//sigaddset(&mask, SIGCHLD);
+	sigemptyset(&mask);
+
 	printf("Waiting for fg\n");
 	// Gets current fg pid, if 0 then we're done
 	pid_t cur_pid = fgpid(jobs);
 
 	while (cur_pid == pid) {
-		sleep(1);
+		sigsuspend(&mask);
 		cur_pid = fgpid(jobs);
 	}
 	printf("Done waiting for fg\n");
@@ -621,15 +625,18 @@ sigchld_handler(int signum)
 	Sio_puts("Called child handler\n");
 	(void)signum;
         int olderrno = errno;
-	//sigset_t mask_all, prev_all;
+	sigset_t mask_all, prev_all;
 	pid_t pid;
 
-	//sigfillset(&mask_all);
+	sigfillset(&mask_all);
 	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
+		sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+		listjobs(jobs);
 		Sio_puts("Deleting task ");
 		Sio_putl((long)pid);
 		Sio_puts("\n");
 		deletejob(jobs, pid);
+		sigprocmask(SIG_SETMASK, &prev_all, NULL);
 	}
 	if (errno != ECHILD) {
 		Sio_error("waitpid error");
