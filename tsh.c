@@ -490,9 +490,57 @@ builtin_cmd(char **argv)
 static void
 do_bgfg(char **argv) 
 {
+	if (argv[1] == NULL) { 
+		printf("%s command requires PID or %%jobid argument\n", argv[0]);
+	}
+	
+	char *jobnum = argv[1];
+	int is_jid = 0;
+	// If it's a jid
+	if (jobnum[0] == '%') { 
+		is_jid = 1;
+		// Discard this character
+		jobnum = &jobnum[1];
+	}
+	// check that id is valid number
+	int i = 0;
+	while (jobnum[i] != '\0') {
+		if (!isdigit(jobnum[i])) {
+			printf("%s: argument must be PID or %%jobid\n", argv[0]);
+			return;
+		}
+		i++;
+	}
 
-	// Prevent an "unused parameter" warning.  REMOVE THIS STATEMENT!
-	(void)argv;
+	int id = (int) strtol(jobnum, (char **)NULL, 10);
+
+	JobP job;
+	if (is_jid) {
+		job = getjobjid(jobs, id);
+		if (job == NULL) {
+			printf("%%%d: No such job\n", id);
+			return;
+		}
+	} else {
+		job = getjobpid(jobs, (pid_t) id);
+		if (job == NULL) {
+			printf("%d: No such job\n", id);
+			return;
+		}
+	}
+	
+	// Do the actual command
+	
+	kill(-job->pid, SIGCONT);
+        if (!strcmp(argv[0], "bg")) {
+		job->state = BG;
+		printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+	} else if (!strcmp(argv[0], "fg")) {
+		job->state = FG;
+		waitfg(job->pid);
+	} else {
+		Sio_error("unknown bg/fg command");
+	}
 }
 
 /* 
@@ -507,10 +555,6 @@ do_bgfg(char **argv)
 static void
 waitfg(pid_t pid)
 {
-//	sigset_t mask;
-	//sigaddset(&mask, SIGCHLD);
-//	sigemptyset(&mask);
-
 	while (1) {
 		//sigsuspend(&mask);
 		sleep(1);
@@ -692,7 +736,7 @@ sigtstp_handler(int signum)
 	Sio_putl((long) pid2jid(pid));
 	Sio_puts("] (");
 	Sio_putl((long) pid);
-	Sio_puts(") stopped by signal SIGSTP\n");
+	Sio_puts(") stopped by signal SIGTSTP\n");
 }
 
 /*
