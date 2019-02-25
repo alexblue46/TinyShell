@@ -372,14 +372,15 @@ eval(const char *cmdline)
 	JobP job = jobs;
 	getjobpid(job, pid);
 	if (bg) { 
-		printf("[%d] (%d) Running %s", job->jid, job->pid, job->cmdline);
+		printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
 	}
+
        	sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
-		
 	// If it's a foreground task, wait for it to finish before continuing REPL
 	if (!bg) {
 		waitfg(pid);
 	}
+
 	// TODO memory leak in argv? (but static buf where its allcated) executable/abs_path? 
 }
 
@@ -516,15 +517,14 @@ waitfg(pid_t pid)
 	//sigaddset(&mask, SIGCHLD);
 	sigemptyset(&mask);
 
-	printf("Waiting for fg\n");
 	// Gets current fg pid, if 0 then we're done
 	pid_t cur_pid = fgpid(jobs);
 
 	while (cur_pid == pid) {
-		sigsuspend(&mask);
+		//sigsuspend(&mask);
+		sleep(1);
 		cur_pid = fgpid(jobs);
 	}
-	printf("Done waiting for fg\n");
 }
 
 /* 
@@ -622,7 +622,6 @@ initpath(const char *pathstr)
 static void
 sigchld_handler(int signum)
 {
-	Sio_puts("Called child handler\n");
 	(void)signum;
         int olderrno = errno;
 	sigset_t mask_all, prev_all;
@@ -631,18 +630,14 @@ sigchld_handler(int signum)
 	sigfillset(&mask_all);
 	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
 		sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-		listjobs(jobs);
-		Sio_puts("Deleting task ");
-		Sio_putl((long)pid);
-		Sio_puts("\n");
+		//listjobs(jobs);
 		deletejob(jobs, pid);
 		sigprocmask(SIG_SETMASK, &prev_all, NULL);
 	}
-	if (errno != ECHILD) {
-		Sio_error("waitpid error");
-	}
+	//if (errno != ECHILD) {
+	//	Sio_error("waitpid error");
+	//}
 	errno = olderrno;
-	Sio_error("Done reaping\n");
 }
 
 /* 
