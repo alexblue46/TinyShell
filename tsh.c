@@ -369,8 +369,7 @@ eval(const char *cmdline)
 	}
 
 	addjob(jobs, pid, bg ? BG : FG, cmdline);
-	JobP job = jobs;
-	getjobpid(job, pid);
+	JobP job = getjobpid(jobs, pid);
 	if (bg) { 
 		printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
 	}
@@ -468,12 +467,7 @@ builtin_cmd(char **argv)
 		exit(0);
 	}
 	if (!strcmp(argv[0], "jobs")) {
-		int i;
-		for (i = 0; i < MAXJOBS; i++) {
-			if (jobs[i].state == BG) {
-				printf("[%d] (%d) Running %s", jobs[i].jid, jobs[i].pid, jobs[i].cmdline);
-			}
-		}
+	        listjobs(jobs);
 		return 1;
 	}
 	if (!strcmp(argv[0], "bg") || !strcmp(argv[0], "fg")) {
@@ -513,17 +507,19 @@ do_bgfg(char **argv)
 static void
 waitfg(pid_t pid)
 {
-	sigset_t mask;
+//	sigset_t mask;
 	//sigaddset(&mask, SIGCHLD);
-	sigemptyset(&mask);
+//	sigemptyset(&mask);
 
-	// Gets current fg pid, if 0 then we're done
-	pid_t cur_pid = fgpid(jobs);
-
-	while (cur_pid == pid) {
+	while (1) {
 		//sigsuspend(&mask);
 		sleep(1);
-		cur_pid = fgpid(jobs);
+		
+		JobP job = getjobpid(jobs, pid);
+		// if fg task doesn't exist or it isn't FG, stop waiting
+		if (job == NULL || job->state != FG) {
+			break;
+		}
 	}
 }
 
@@ -654,13 +650,18 @@ sigchld_handler(int signum)
 static void
 sigint_handler(int signum)
 {
-	Sio_puts("Signal int handler called\n");
         pid_t pid = fgpid(jobs);
 	if (pid == 0) {
 		return;
 	}
 	// send signal to every process in pid process group
 	kill(-pid, signum);
+
+	Sio_puts("Job [");
+	Sio_putl((long) pid2jid(pid));
+	Sio_puts("] (");
+	Sio_putl((long) pid);
+	Sio_puts(") terminated by signal SIGINT\n");
 }
 
 /*
@@ -677,14 +678,21 @@ sigint_handler(int signum)
 static void
 sigtstp_handler(int signum)
 {
-	Sio_puts("Signal stop handler called\n");
 	pid_t pid = fgpid(jobs);
 	if (pid == 0) {
 		return;
 	}
 	// send signal to every process in pid process group
 	kill(-pid, signum);
-	
+	// Set the job's state to stopped
+	JobP job = getjobpid(jobs, pid);
+	job->state = ST;
+
+	Sio_puts("Job [");
+	Sio_putl((long) pid2jid(pid));
+	Sio_puts("] (");
+	Sio_putl((long) pid);
+	Sio_puts(") stopped by signal SIGSTP\n");
 }
 
 /*
