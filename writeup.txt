@@ -1,4 +1,4 @@
-<Insert your name(s).>
+Kyran Adams, Alex Bluestein
 COMP 321 Project 4: Unix Shell
 <Insert the date that you turned in this assignment.>
 
@@ -15,3 +15,23 @@ TESTING STRATEGY
 you should explain how you tested your code, how you selected your inputs,
 what those inputs were, and why you believe those inputs were sufficient
 to test your code.>
+
+For our testing strategy we extended the testing driver system given to us
+and used the diff command to compare the output given by our program with
+the reference program. For simple tests, we just visually compared the 
+outputs of the two programs.
+
+Our first test tried running programs that did not exist or were not
+executable. Our second test runs the test programs myint and mystop.
+We also tested synchronization bugs with the childhandler by adding
+in sleep calls in the shell to force certain synchronization
+cirumstances that might cause error. For example, we tested when
+programs ended before they were added to the job list.
+Then, we wrote a test that tested all permutations of
+using '.', '/', directories in the cwd, executables in the cwd, and
+executables in directories of the cwd. Then we wrote a test that
+tested other programs in the path.
+
+Combined, the tests test all conditions to find a program, all
+conditions for which a program can halt (each signal type), as well
+as race conditions between the shell and its running programs.

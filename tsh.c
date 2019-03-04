@@ -293,19 +293,24 @@ eval(const char *cmdline)
 		Sio_error("Failed allocating memory");
 	}
 	int bg = parseline(cmdline, argv);
-
-	//int i = 0;
-	//while(argv[i] != NULL) {
-	//	printf("ARGV[%d]: %s\n", i, argv[i]);
-	//	i++;
-	//}
 	
+	if (argv[0] == NULL) {
+		return;
+	}
 	// If builtin command, evaluate it
 	if (builtin_cmd(argv)) {
 		return;
 	}
-	if (argv[0] == NULL) {
-		return;
+	int is_exe_in_cwd = 0;
+	if (access(argv[0], X_OK) == 0) {
+		is_exe_in_cwd = 1;
+		int i = 0;
+		while (argv[0][i] != '\0') {
+			if (argv[0][i] == '/') {
+				is_exe_in_cwd = 0;
+			}
+			i++;
+		}
 	}
 	
 	char *executable = NULL;
@@ -313,8 +318,7 @@ eval(const char *cmdline)
 	if (argv[0][0] == '/' || argv[0][0] == '.' || search_path == NULL) { 
 		executable = argv[0];
 		// We have a full path to executable
-		//printf("FULL PATH %s\n", argv[0]);
-	} else {
+	} else if (!is_exe_in_cwd) {
 		int i = 0;
 		// search through path for valid path to executable
 		while(search_path[i] != NULL) {
@@ -340,10 +344,7 @@ eval(const char *cmdline)
 		printf("%s: Command not found\n", argv[0]);
 		return;
 	}
-	
-	//printf("EXE: %s\n", executable);
-	// Block child signal before forking so we add job 
-	// before it's reaped
+        
 	sigset_t mask, prev_mask;
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGCHLD);
@@ -367,7 +368,6 @@ eval(const char *cmdline)
 		// TASK CREATION FAILED
 		printf("Task creation failed.\n");
 	}
-
 	addjob(jobs, pid, bg ? BG : FG, cmdline);
 	JobP job = getjobpid(jobs, pid);
 	if (bg) { 
@@ -375,13 +375,11 @@ eval(const char *cmdline)
 	}
 
        	sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
-	// If it's a foreground task, wait for it to finish before continuing REPL
+	// If it's a foreground task, 
+	// wait for it to finish before continuing REPL
 	if (!bg) {
 		waitfg(pid);
 	}
-	//printf("Done waiting\n");
-
-	// TODO memory leak in argv? (but static buf where its allcated) executable/abs_path? 
 }
 
 /* 
@@ -492,7 +490,8 @@ static void
 do_bgfg(char **argv) 
 {
 	if (argv[1] == NULL) { 
-		printf("%s command requires PID or %%jobid argument\n", argv[0]);
+		printf("%s command requires PID", argv[0]);
+		printf(" or %%jobid argument\n");
 	}
 	
 	char *jobnum = argv[1];
@@ -507,7 +506,8 @@ do_bgfg(char **argv)
 	int i = 0;
 	while (jobnum[i] != '\0') {
 		if (!isdigit(jobnum[i])) {
-			printf("%s: argument must be PID or %%jobid\n", argv[0]);
+			printf("%s command requires PID", argv[0]);
+			printf(" or %%jobid argument\n");
 			return;
 		}
 		i++;
@@ -557,7 +557,6 @@ static void
 waitfg(pid_t pid)
 {
 	while (1) {
-		//sigsuspend(&mask);
 		sleep(1);
 		
 		JobP job = getjobpid(jobs, pid);
@@ -635,7 +634,7 @@ initpath(const char *pathstr)
 			for (z = 0; z < len; z++) {
 				path[z] = pathstr[cur_pos + z];
 			}
-			path[z+1] = '\0';
+			path[z + 1] = '\0';
 		}
 		search_path[i] = path;
 		cur_pos += len + 1;
@@ -743,9 +742,6 @@ sigtstp_handler(int signum)
 	}
 	// send signal to every process in pid process group
 	kill(-pid, signum);
-	// Set the job's state to stopped
-	JobP job = getjobpid(jobs, pid);
-	job->state = ST;
 }
 
 /*
