@@ -337,7 +337,7 @@ eval(const char *cmdline)
 	}
 
 	if (executable == NULL || access(executable, X_OK) != 0) {
-		printf("%s: Command not found.\n", argv[0]);
+		printf("%s: Command not found\n", argv[0]);
 		return;
 	}
 	
@@ -360,7 +360,7 @@ eval(const char *cmdline)
 		sigprocmask(SIG_SETMASK, &prev_mask,  NULL);
 
 		if (execve(executable, argv, environ) < 0) {
-			printf("%s: Command not found.\n", argv[0]);
+			printf("%s: Command not found\n", argv[0]);
 			exit(0);
 		}
 	} else if (pid < 0) {
@@ -379,6 +379,7 @@ eval(const char *cmdline)
 	if (!bg) {
 		waitfg(pid);
 	}
+	//printf("Done waiting\n");
 
 	// TODO memory leak in argv? (but static buf where its allcated) executable/abs_path? 
 }
@@ -666,17 +667,37 @@ sigchld_handler(int signum)
         int olderrno = errno;
 	sigset_t mask_all, prev_all;
 	pid_t pid;
+	int stat_loc;
 
 	sigfillset(&mask_all);
-	while ((pid = waitpid(-1, NULL, WNOHANG)) > 0) {
-		sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
-		//listjobs(jobs);
-		deletejob(jobs, pid);
-		sigprocmask(SIG_SETMASK, &prev_all, NULL);
+	while ((pid = waitpid(-1, &stat_loc, WNOHANG | WUNTRACED)) > 0) {
+		// If a job is stopped, we print it and stop it
+		if (WIFSTOPPED(stat_loc)) {
+			Sio_puts("Job [");
+			Sio_putl((long) pid2jid(pid));
+			Sio_puts("] (");
+			Sio_putl((long) pid);
+			Sio_puts(") stopped by signal SIGTSTP\n");
+			sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+			JobP job = getjobpid(jobs, pid);
+			job->state = ST;
+			sigprocmask(SIG_SETMASK, &prev_all, NULL);
+		} else {
+			// If the job was terminated by signal
+			if (WIFSIGNALED(stat_loc)) {
+				Sio_puts("Job [");
+				Sio_putl((long) pid2jid(pid));
+				Sio_puts("] (");
+				Sio_putl((long) pid);
+				Sio_puts(") terminated by signal SIGINT\n");
+			}
+			// Delete task
+			sigprocmask(SIG_BLOCK, &mask_all, &prev_all);
+			deletejob(jobs, pid);
+			sigprocmask(SIG_SETMASK, &prev_all, NULL);
+		}
 	}
-	//if (errno != ECHILD) {
-	//	Sio_error("waitpid error");
-	//}
+
 	errno = olderrno;
 }
 
@@ -700,12 +721,6 @@ sigint_handler(int signum)
 	}
 	// send signal to every process in pid process group
 	kill(-pid, signum);
-
-	Sio_puts("Job [");
-	Sio_putl((long) pid2jid(pid));
-	Sio_puts("] (");
-	Sio_putl((long) pid);
-	Sio_puts(") terminated by signal SIGINT\n");
 }
 
 /*
@@ -731,12 +746,6 @@ sigtstp_handler(int signum)
 	// Set the job's state to stopped
 	JobP job = getjobpid(jobs, pid);
 	job->state = ST;
-
-	Sio_puts("Job [");
-	Sio_putl((long) pid2jid(pid));
-	Sio_puts("] (");
-	Sio_putl((long) pid);
-	Sio_puts(") stopped by signal SIGTSTP\n");
 }
 
 /*
