@@ -152,10 +152,17 @@ static size_t	sio_strlen(const char s[]);
 
 /*
  * Requires:
- *   <to be filled in by the student(s)>
+ *   "argc" is the number of strings in the following array.
+ *
+ *   "**argv" is an array of strings consisting of a name and zero or 
+ *   more arguments. The name should either start with a directory
+ *   or be the name of an executable file contained in a 
+ *   directory in the search path.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Performs a loop that reads and processes the user input from the
+ *   command line, executes the given commands, and prints the output
+ *   to stdout.
  */
 int
 main(int argc, char **argv) 
@@ -279,10 +286,17 @@ main(int argc, char **argv)
  * when we type ctrl-c (ctrl-z) at the keyboard.  
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *  "*cmdline" is a string consisting of a name and zero or more
+ *  arguments that are separated by one or more spaces. The name 
+ *  should either be a built-in command or the name of an 
+ *  executable file.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   If "*cmdline" is a built-in command then eval executes the 
+ *   built-in command. Otherwise, eval finds the entire name of 
+ *   the executable and executes it using execve. If the executable
+ *   is run in the foreground, then eval waits for the execution to
+ *   finish before terminating.
  */
 static void
 eval(const char *cmdline) 
@@ -481,10 +495,14 @@ builtin_cmd(char **argv)
  * do_bgfg - Execute the built-in bg and fg commands.
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *   "**argv" is an array of strings where the first string is either
+ *   "bg" or "fg".
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Restarts the job given by the second element of the **argv array
+ *   in either the foreground or background by sending the job a 
+ *   SIGCONT signal. Prints an error if the bg/fg command was used 
+ *   incorrectly.
  */
 static void
 do_bgfg(char **argv) 
@@ -548,10 +566,11 @@ do_bgfg(char **argv)
  * waitfg - Block until process pid is no longer the foreground process.
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *   The pid of the job that the calling thread is to wait for.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Suspends the calling thread until the job corresponding to the pid
+ *   is no longer running in the foreground.
  */
 static void
 waitfg(pid_t pid)
@@ -572,7 +591,8 @@ waitfg(pid_t pid)
  *  which may be simply saving the path.
  *
  * Requires:
- *   "pathstr" is a valid search path.
+ *   "pathstr" is a string of directories separated by the ":"
+ *   character.
  *
  * Effects:
  *   Parses the pathstr into the static search_path array.
@@ -654,10 +674,11 @@ initpath(const char *pathstr)
  *  currently running children to terminate.  
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *   An integer corresponding to the type of signal.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Reaps all of the zombie children and delets their corresponding 
+ *   job structs from jobs.
  */
 static void
 sigchld_handler(int signum)
@@ -706,10 +727,11 @@ sigchld_handler(int signum)
  *  to the foreground job.  
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *   An integer corresponding to the type of signal.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Terminates each process in the foregound by sending a SIGINT signal 
+ *   and then displays information about the job that was terminated. 
  */
 static void
 sigint_handler(int signum)
@@ -728,10 +750,11 @@ sigint_handler(int signum)
  *  foreground job by sending it a SIGTSTP.  
  *
  * Requires:
- *   <to be filled in by the student(s)>
+ *   An integer corresponding to the type of signal.
  *
  * Effects:
- *   <to be filled in by the student(s)>
+ *   Places each process in the foreground in the stopped state by sending 
+ *   a SIGSTP signal.
  */
 static void
 sigtstp_handler(int signum)
