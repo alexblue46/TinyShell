@@ -1,20 +1,98 @@
 Kyran Adams, Alex Bluestein
 COMP 321 Project 4: Unix Shell
-<Insert the date that you turned in this assignment.>
+3/6/2019
 
 ---(Do not write lines of text that exceed the width of this line.)------------
 
 DESIGN DESCRIPTION
 
-<Insert a description of your solution in English.  Describe any design
-decisions that you made.  Do not submit pseudo-code.> 
+Eval description: Our eval method first calls the parseline function to split
+up the given command. The 
+builtin_cmd function is used to check if the command is a built in function.
+If it is, builtin_cmd runs the command, and eval is done. Otherwise, the
+function continues by checking if the executable is in the current working 
+directory. It does this by checking if the file is accessible and if the 
+file's name has does not have any "/" characters. The functions proceeds by 
+finding the name of the executable. If the search path is NULL, or the first 
+character in the command line starts with a "." or "/", then the executable 
+is first word in the command line. If this is not the case and the executable
+is not in the current working directory, then the functions iterates through 
+the search path and checks whether the file is accessible in that path. Before
+the function forks into the child and parents tasks, SIGCHLD signals are 
+blocked to avoid concurrency bugs. Once the SIGCHLD signals are blocked, 
+the functions forks. The child task puts the child into a new process group 
+by calling setgpid, so that signals sent to the child task apply only to it and
+its children. Then, we unblock the SIGCHLD signals on the child so that it can 
+itself recieve them. The child task then executes the executable by
+using the execeve function. Meanwhile, the parent adds the job to the global 
+catalog of jobs and prints out information about the job if it is running in the
+background. Then the parent task also unblocks SIGCHLD signals. If the task is 
+running in the foreground, then the waitfg function is called to wait for the 
+foreground task to complete before the eval function terminates.
+
+Initpath description: Our initpath function takes a path environment variable, 
+and seperates it into its individual paths, with which it populates a global 
+array. It actually also adds the current working directory to the beginning of 
+this array to simplify later calculations. The function begins by calculating 
+the number of paths in the pathstr by counting the number of colons and adding 
+two (plus one for the first path and plus one for the current working 
+directory). We then allocate memory for the search path array. getcwd is used 
+to retrieve the current working directory and this string is placed in the 
+first position in the search path array. The functions then iterates 
+through the pathstr and copies over the strings between the colons to 
+the search path array. If two colons are next to each other, or if 
+pathstr ends or starts with a colon, the current working directory is added 
+to the search path by using the getcwd function. This array is then NULL 
+terminated.
+
+Builtin_cmd description: Our builtin_cmd method checks to see if the first word
+in the command line is a built-in function. First our function checks if the 
+first word is "quit". If it is, then exit is used to quit the program. If the 
+first word is "jobs" then the listjobs function is called to display the jobs. 
+If the first word is "bg" or "fg" then the do_bgfg function is called. If the 
+first word matches any of these built in commands (except quit), then the 
+function returns 1 to indicate that a built in command is being executed. 
+Otherwise, the function returns 0 to indicate that the command line arguments
+were not referring to a built in command.
+
+Do_bgfg description: Our do_bgfg method begins by confirming that there is 
+another word in the command line following "bg" or "fg". If there is not 
+another word, then an error message is printed. If the second word starts with 
+a "%" character then it is referring to the jid of a job. In either case, the 
+string is converted to a job using either getjobpid or getjobjid. If the job 
+cannot be retrieved then an error message is printed. A SIGCONT signal is 
+sent to the process group of the job by calling the kill function to restart 
+the job. Depending on whether the first word in the command line was "bg"
+ or "fg", the state of the job is changed to background or foreground, 
+respectively. If the state is changed to background, then the job's 
+information is printed. If the state is changed to foreground, then waitfg is 
+called to wait for the foreground task to complete before terminating.
+
+Waitfg description: Our waitfg method implements the recommended method of a 
+while loop around the sleep function. The sleep function suspends the calling 
+thread for a second. After the program sleeps for a second, the functions 
+checks if the job corresponding to the inputted pid has either ceased to exist 
+or is no longer in the foreground. If this is the case, then the while loop is 
+exited and the function is terminated. If the job remains in the foreground, 
+then the previous process repeats again.
+
+Sigchld_handler description: Our sigchld_handler method at a high level checks
+for all stopped or terminated tasks, prints this information, and then updates
+this information in the job catalog. It repeatedly calls waitpid with the flags
+WNOHANG and WUNTRACED, which means that it does not block until a task is done,
+and it also returns for stopped tasks (as well as terminated tasks). For each
+of these tasks, it prints information about them, and then updates the job 
+catalog. However, it blocks other signals before updating them and unblocks
+them after to remove possible concurrency bugs. This handler also replaces
+errno as the book suggests.
+
+Sigstp_handler/Sigint_handler description: Both of these methods proceed in the
+same way. First these methods find the pid of the job running in the foreground.
+If no job is running in the foreground, then the function returns. Otherwise,
+the method proceeds by sending a SIGSTP/SIGINT signal to the process group of 
+the job by calling the kill function.
 
 TESTING STRATEGY
-
-<Insert a detailed description of your testing strategy: at a minimum
-you should explain how you tested your code, how you selected your inputs,
-what those inputs were, and why you believe those inputs were sufficient
-to test your code.>
 
 For our testing strategy we extended the testing driver system given to us
 and used the diff command to compare the output given by our program with
